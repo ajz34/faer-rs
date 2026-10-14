@@ -141,16 +141,20 @@ pub fn norm_l2_x3<T: ComplexField>(mut mat: MatRef<'_, T>) -> [T::Real; 3] {
 				}
 			}
 		}
-		let ref sml = min_positive::<T::Real>();
-		let ref big = max_positive::<T::Real>();
-		let mut acc = zero::<T::Real>();
+		let ref sml = sqrt_min_positive::<T::Real>();
+		let ref big = sqrt_max_positive::<T::Real>();
+		let mut acc_sml = zero::<T::Real>();
+		let mut acc_med = zero::<T::Real>();
+		let mut acc_big = zero::<T::Real>();
 		for j in 0..n {
 			for i in 0..m {
-				acc = acc.hypot(mat[(i, j)].abs());
+				let a = mat[(i, j)].abs();
+				acc_sml = acc_sml.hypot(&a * sml);
+				acc_med = acc_med.hypot(&a);
+				acc_big = acc_big.hypot(&a * big);
 			}
 		}
-		acc = acc.abs2();
-		[sml * &acc, acc.copy(), big * &acc]
+		[acc_sml.abs2(), acc_med.abs2(), acc_big.abs2()]
 	}
 }
 pub fn norm_l2<T: ComplexField>(mat: MatRef<'_, T>) -> T::Real {
@@ -169,6 +173,17 @@ pub fn norm_l2<T: ComplexField>(mat: MatRef<'_, T>) -> T::Real {
 mod tests {
 	use super::*;
 	use crate::{Col, Mat, assert, c64};
+
+	#[test]
+	fn test_norm_l2_scalar_large_magnitude() {
+		// A row view is not col-major, so it takes the scalar path.
+		let relative_err =
+			|a: f32, b: f32| (a - b).abs() / f32::max(a.abs(), b.abs());
+		let v = 2e19f32;
+		let mat = Mat::<f32>::from_fn(3, 3, |_, _| v);
+		let out = norm_l2(mat.as_ref().row(0).as_mat());
+		assert!(relative_err(out, v * 3f32.sqrt()) < 1e-6);
+	}
 
 	#[test]
 	fn test_norm_l2() {
